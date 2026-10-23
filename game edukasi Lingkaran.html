@@ -1,0 +1,1192 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Duel Master Lingkaran - Ultimate Edition (2 HP + vs AI + Garis Singgung)</title>
+  <!-- PeerJS untuk koneksi real-time antar 2 HP -->
+  <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card: #1e293b;
+      --primary: #3b82f6;
+      --accent: #f59e0b;
+      --success: #10b981;
+      --danger: #ef4444;
+      --purple: #8b5cf6;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', system-ui, sans-serif; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      padding: 10px;
+    }
+    .app-container {
+      width: 100%;
+      max-width: 460px;
+      background: var(--card);
+      border-radius: 20px;
+      padding: 18px;
+      box-shadow: 0 15px 35px rgba(0,0,0,0.55);
+      border: 1px solid rgba(255,255,255,0.08);
+      text-align: center;
+    }
+    h1 { font-size: 1.35rem; margin-bottom: 5px; color: #60a5fa; }
+    p.sub { font-size: 0.82rem; color: var(--muted); margin-bottom: 12px; }
+    .screen { display: none; }
+    .screen.active { display: block; }
+    .btn {
+      width: 100%;
+      padding: 11px;
+      margin: 5px 0;
+      border: none;
+      border-radius: 12px;
+      font-size: 0.92rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: transform 0.1s, opacity 0.2s;
+      color: white;
+    }
+    .btn:active { transform: scale(0.97); }
+    .btn-primary { background: linear-gradient(135deg, #2563eb, #1d4ed8); }
+    .btn-accent { background: linear-gradient(135deg, #f59e0b, #d97706); }
+    .btn-teacher { background: linear-gradient(135deg, #8b5cf6, #6d28d9); }
+    .btn-success { background: linear-gradient(135deg, #10b981, #059669); }
+    .btn-outline { background: transparent; border: 2px solid #475569; color: var(--text); }
+    
+    input.code-input, .form-input, .form-select, .form-textarea {
+      width: 100%;
+      padding: 9px;
+      border-radius: 10px;
+      border: 2px solid #334155;
+      background: #0f172a;
+      color: white;
+      font-size: 0.88rem;
+      margin-bottom: 7px;
+    }
+    input.code-input {
+      font-size: 1.1rem;
+      text-align: center;
+      letter-spacing: 3px;
+      font-weight: bold;
+      text-transform: uppercase;
+    }
+    .form-textarea {
+      resize: vertical;
+      min-height: 48px;
+      font-family: inherit;
+    }
+    .room-badge {
+      background: #0f172a;
+      border: 2px dashed var(--accent);
+      padding: 12px;
+      border-radius: 12px;
+      font-size: 1.7rem;
+      font-weight: 800;
+      letter-spacing: 5px;
+      color: var(--accent);
+      margin: 10px 0;
+    }
+    .scoreboard {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #0f172a;
+      padding: 8px 12px;
+      border-radius: 12px;
+      margin-bottom: 8px;
+      font-weight: 700;
+      font-size: 0.86rem;
+    }
+    .score-p1 { color: #60a5fa; }
+    .score-p2 { color: #f472b6; }
+
+    /* Timer Bar */
+    .timer-wrapper {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 8px;
+      background: #0f172a;
+      padding: 5px 10px;
+      border-radius: 10px;
+    }
+    .timer-text { font-weight: 800; font-size: 0.88rem; min-width: 48px; color: #34d399; }
+    .timer-bar-bg { flex: 1; height: 9px; background: #334155; border-radius: 99px; overflow: hidden; }
+    .timer-bar-fill { height: 100%; width: 100%; background: var(--success); transition: width 1s linear, background-color 0.3s ease; }
+
+    .category-badge {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 99px;
+      font-size: 0.73rem;
+      font-weight: 700;
+      margin-bottom: 4px;
+      background: rgba(59, 130, 246, 0.2);
+      color: #93c5fd;
+    }
+    canvas {
+      background: #0f172a;
+      border-radius: 14px;
+      border: 1px solid #334155;
+      margin: 3px auto;
+      display: block;
+    }
+    .question-box {
+      font-size: 0.86rem;
+      font-weight: 600;
+      margin: 5px 0 9px 0;
+      min-height: 42px;
+      line-height: 1.32;
+      color: #e2e8f0;
+    }
+    .options-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 7px;
+    }
+    .opt-btn {
+      background: #334155;
+      border: 2px solid transparent;
+      color: white;
+      padding: 9px 5px;
+      border-radius: 10px;
+      font-weight: 600;
+      font-size: 0.84rem;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .opt-btn:disabled { cursor: not-allowed; opacity: 0.88; }
+    .opt-btn.correct { background: var(--success) !important; border-color: #34d399; }
+    .opt-btn.wrong { background: var(--danger) !important; border-color: #f87171; }
+    
+    .status-toast {
+      margin-top: 7px;
+      font-size: 0.81rem;
+      color: var(--accent);
+      min-height: 18px;
+      font-weight: 600;
+    }
+
+    /* Kotak Pembahasan Rumus */
+    .explanation-box {
+      display: none;
+      margin-top: 7px;
+      background: rgba(16, 185, 129, 0.12);
+      border: 1.5px solid #10b981;
+      border-radius: 12px;
+      padding: 8px 11px;
+      text-align: left;
+      animation: fadeIn 0.25s ease-in-out;
+    }
+    .explanation-box.show { display: block; }
+    .exp-header {
+      font-size: 0.75rem;
+      font-weight: 800;
+      color: #34d399;
+      margin-bottom: 2px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .exp-content {
+      font-size: 0.79rem;
+      color: #f1f5f9;
+      line-height: 1.32;
+      font-weight: 500;
+      margin-bottom: 7px;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Panel Guru */
+    .teacher-box {
+      text-align: left;
+      background: #0f172a;
+      padding: 10px;
+      border-radius: 12px;
+      border: 1px solid #334155;
+      margin-bottom: 10px;
+    }
+    .teacher-box label {
+      display: block;
+      font-size: 0.74rem;
+      color: var(--muted);
+      margin-bottom: 2px;
+      font-weight: 600;
+    }
+    .q-list-container {
+      max-height: 170px;
+      overflow-y: auto;
+      text-align: left;
+      margin-bottom: 8px;
+      padding-right: 4px;
+    }
+    .q-item {
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 10px;
+      padding: 8px;
+      margin-bottom: 7px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 8px;
+    }
+    .q-item-info { flex: 1; font-size: 0.76rem; line-height: 1.33; }
+    .q-item-tag { color: #60a5fa; font-weight: 700; font-size: 0.7rem; display: block; }
+    .q-item-exp { color: #cbd5e1; font-size: 0.71rem; margin-top: 2px; background: #1e293b; padding: 3px 5px; border-radius: 5px; border-left: 3px solid #f59e0b; }
+    .q-item-actions { display: flex; flex-direction: column; gap: 4px; }
+    .btn-sm {
+      padding: 5px 8px;
+      border: none;
+      border-radius: 6px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      cursor: pointer;
+      color: white;
+    }
+    .grid-2col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 7px;
+    }
+  </style>
+</head>
+<body>
+
+<div class="app-container">
+  <!-- LAYAR 1: MENU UTAMA -->
+  <div id="screen-menu" class="screen active">
+    <h1>⭕ Duel Master Lingkaran</h1>
+    <p class="sub">Edisi Ultimate: 2 HP Multiplayer + Bot AI + Garis Singgung</p>
+
+    <input type="text" id="player-name" class="code-input" placeholder="KETIK NAMA KAMU" maxlength="12" style="letter-spacing:1px; font-size:0.92rem;">
+
+    <button class="btn btn-primary" onclick="playClickSound(); createRoom()">📱 Buat Room di HP 1 (Host 2 HP)</button>
+    <button class="btn btn-success" onclick="playClickSound(); startSinglePlayerAI()">🤖 Latihan Sendiri (vs Bot AI)</button>
+    <button class="btn btn-teacher" onclick="playClickSound(); openTeacherMenu()">👩‍🏫 Menu Guru: Kelola Soal (<span id="total-q-badge">19</span>)</button>
+
+    <div style="margin: 8px 0; color: var(--muted); font-size: 0.75rem;">— ATAU GABUNG DARI HP 2 —</div>
+    <input type="text" id="join-code" class="code-input" placeholder="KODE 4 DIGIT" maxlength="4">
+    <button class="btn btn-accent" onclick="playClickSound(); joinRoom()">🔗 Gabung Room (HP 2)</button>
+    <p id="menu-status" class="status-toast"></p>
+  </div>
+
+  <!-- PANEL KELOLA SOAL GURU -->
+  <div id="screen-teacher" class="screen">
+    <h1>👩‍🏫 Panel Soal & Pembahasan</h1>
+    <p class="sub">Kelola bank soal unsur, sudut, dan garis singgung.</p>
+
+    <div class="teacher-box">
+      <input type="hidden" id="edit-index" value="-1">
+      
+      <div class="grid-2col">
+        <div>
+          <label>Kategori Soal</label>
+          <input type="text" id="form-cat" class="form-input" placeholder="Misal: Garis Singgung">
+        </div>
+        <div>
+          <label>Ilustrasi Gambar</label>
+          <select id="form-draw" class="form-select" onchange="previewTeacherCanvas()">
+            <option value="juring">Juring (Sektor Oranye)</option>
+            <option value="tembereng">Tembereng (Ungu)</option>
+            <option value="talibusur">Tali Busur (Garis Merah)</option>
+            <option value="apotema">Apotema (Garis Hijau)</option>
+            <option value="diameter">Diameter (Garis Kuning)</option>
+            <option value="jarijari">Jari-Jari (Garis Biru)</option>
+            <option value="busur">Busur (Lengkung Biru)</option>
+            <option value="luas">Luas Penuh (Arsir Biru)</option>
+            <option value="setengah">Setengah Lingkaran</option>
+            <option value="sudutpusat">Sudut Pusat & Keliling</option>
+            <option value="panjangbusur">Panjang Busur</option>
+            <option value="garissinggung">Garis Singgung Persekutuan</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="grid-2col" style="align-items:center; margin-bottom:3px;">
+        <div>
+          <label>Label Angka di Gambar</label>
+          <input type="text" id="form-label" class="form-input" placeholder="Misal: d = 17 cm" oninput="previewTeacherCanvas()">
+          <label>Kunci Jawaban Benar</label>
+          <select id="form-answer" class="form-select">
+            <option value="0">Opsi A</option>
+            <option value="1">Opsi B</option>
+            <option value="2">Opsi C</option>
+            <option value="3">Opsi D</option>
+          </select>
+        </div>
+        <div>
+          <canvas id="previewCanvas" width="115" height="95" style="margin:0 auto;"></canvas>
+        </div>
+      </div>
+
+      <label>Pertanyaan / Soal</label>
+      <textarea id="form-q" class="form-textarea" placeholder="Tulis pertanyaan lingkaran..."></textarea>
+
+      <label>Pilihan Jawaban (A, B, C, D)</label>
+      <div class="grid-2col">
+        <input type="text" id="form-opt0" class="form-input" placeholder="Opsi A">
+        <input type="text" id="form-opt1" class="form-input" placeholder="Opsi B">
+        <input type="text" id="form-opt2" class="form-input" placeholder="Opsi C">
+        <input type="text" id="form-opt3" class="form-input" placeholder="Opsi D">
+      </div>
+
+      <label>💡 Pembahasan Rumus</label>
+      <textarea id="form-exp" class="form-textarea" placeholder="Contoh: Rumus GSPL d² - (R-r)²" style="min-height:42px;"></textarea>
+
+      <div class="grid-2col">
+        <button class="btn btn-success" id="btn-save-q" onclick="saveQuestion()" style="margin:2px 0; padding:9px;">💾 Simpan</button>
+        <button class="btn btn-outline" onclick="resetForm()" style="margin:2px 0; padding:9px;">🔄 Bersihkan</button>
+      </div>
+    </div>
+
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;">
+      <span style="font-size:0.8rem; font-weight:700; color:#93c5fd;">Daftar Soal (<span id="list-count">0</span>):</span>
+      <button class="btn-sm" style="background:#475569;" onclick="resetToDefaultQuestions()">Reset Bawaan</button>
+    </div>
+
+    <div class="q-list-container" id="teacher-q-list"></div>
+
+    <button class="btn btn-primary" onclick="showScreen('screen-menu')">⬅️ Kembali ke Menu Utama</button>
+  </div>
+
+  <!-- LAYAR 2: RUANG TUNGGU HOST -->
+  <div id="screen-lobby" class="screen">
+    <h1>Menunggu HP 2...</h1>
+    <p class="sub">Masukkan kode 4 angka ini di HP 2:</p>
+    <div id="display-room-code" class="room-badge">----</div>
+    <p id="lobby-status" class="status-toast">Menghubungkan ke server PeerJS...</p>
+    <button class="btn btn-outline" onclick="location.reload()">Batal</button>
+  </div>
+
+  <!-- LAYAR 3: ARENA PERMAINAN -->
+  <div id="screen-game" class="screen">
+    <div class="scoreboard">
+      <span class="score-p1" id="p1-label">Pemain: 0</span>
+      <span id="round-label" style="color:var(--accent)">Soal 1/19</span>
+      <span class="score-p2" id="p2-label">Lawan: 0</span>
+    </div>
+
+    <!-- Timer 15 Detik -->
+    <div class="timer-wrapper">
+      <span class="timer-text" id="timer-label">⏱️ 15s</span>
+      <div class="timer-bar-bg">
+        <div class="timer-bar-fill" id="timer-bar"></div>
+      </div>
+    </div>
+
+    <div class="category-badge" id="q-category">Unsur Lingkaran</div>
+    <canvas id="circleCanvas" width="225" height="155"></canvas>
+    <div class="question-box" id="question-text">Memuat soal...</div>
+
+    <div class="options-grid" id="options-container"></div>
+    <p id="game-status" class="status-toast"></p>
+
+    <!-- Kotak Pembahasan & Tombol Lanjut -->
+    <div class="explanation-box" id="explanation-box">
+      <div class="exp-header">💡 Pembahasan & Rumus Penyelesaian</div>
+      <div class="exp-content" id="explanation-text"></div>
+      <button class="btn btn-success" id="btn-next-round" onclick="hostNextRound()" style="padding:9px; font-size:0.88rem; display:none; margin-top:5px;">
+        ▶️ Lanjut ke Soal Berikutnya (Host)
+      </button>
+      <p id="waiting-host-msg" style="font-size:0.76rem; color:var(--accent); font-weight:600; margin-top:3px; display:none;">
+        Menunggu HP 1 (Host) / Bot melanjutkan soal...
+      </p>
+    </div>
+  </div>
+
+  <!-- LAYAR 4: HASIL AKHIR -->
+  <div id="screen-result" class="screen">
+    <h1 id="winner-title">🏆 Hasil Akhir</h1>
+    <p class="sub" id="winner-desc"></p>
+    <div class="room-badge" id="final-score-box" style="font-size:1.05rem; letter-spacing:1px;"></div>
+    
+    <button class="btn btn-success" onclick="printReport()" style="margin-bottom:6px;">🖨️ Cetak / Unduh Laporan Nilai</button>
+    <button class="btn btn-primary" onclick="location.reload()">Main Lagi</button>
+  </div>
+</div>
+
+<script>
+  // ==================== WEB AUDIO API ====================
+  let audioCtx = null;
+  function initAudio() {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  function playTone(frequency, duration, type = 'sine', gainVal = 0.1) {
+    try {
+      initAudio();
+      if (!audioCtx) return;
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = type; osc.frequency.value = frequency;
+      gain.gain.setValueAtTime(gainVal, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.00001, audioCtx.currentTime + duration);
+      osc.connect(gain); gain.connect(audioCtx.destination);
+      osc.start(); osc.stop(audioCtx.currentTime + duration);
+    } catch (e) {}
+  }
+  function playClickSound() { playTone(580, 0.08, 'triangle', 0.08); }
+  function playTickSound() { playTone(440, 0.06, 'sine', 0.05); }
+  function playCorrectSound() {
+    playTone(523.25, 0.12, 'sine', 0.12);
+    setTimeout(() => playTone(659.25, 0.12, 'sine', 0.12), 120);
+    setTimeout(() => playTone(783.99, 0.25, 'sine', 0.15), 240);
+  }
+  function playWrongSound() {
+    playTone(220, 0.18, 'sawtooth', 0.1);
+    setTimeout(() => playTone(165, 0.25, 'sawtooth', 0.12), 150);
+  }
+  function playWinSound() {
+    [523.25, 587.33, 659.25, 698.46, 783.99, 880, 987.77, 1046.50].forEach((f, i) => {
+      setTimeout(() => playTone(f, 0.2, 'triangle', 0.15), i * 110);
+    });
+  }
+
+  // ==================== BANK SOAL (19 SOAL LENGKAP) ====================
+  const ROUND_TIME = 15;
+  const STORAGE_KEY = "duel_lingkaran_custom_questions_v5";
+
+  const DEFAULT_QUESTIONS = [
+    {
+      cat: "Unsur Lingkaran",
+      q: "Daerah berwarna oranye yang dibatasi dua jari-jari dan satu busur seperti potongan pizza disebut...",
+      draw: "juring", label: "",
+      options: ["Juring", "Tembereng", "Apotema", "Tali Busur"], answer: 0,
+      exp: "Juring adalah daerah dalam lingkaran yang dibatasi dua jari-jari dan satu busur."
+    },
+    {
+      cat: "Unsur Lingkaran",
+      q: "Garis lurus merah yang menghubungkan dua titik pada lingkaran TANPA melalui titik pusat O disebut...",
+      draw: "talibusur", label: "",
+      options: ["Diameter", "Tali Busur", "Jari-Jari", "Busur"], answer: 1,
+      exp: "Tali Busur menghubungkan 2 titik pada keliling lingkaran tanpa melewati titik pusat."
+    },
+    {
+      cat: "Soal Cerita: Keliling",
+      q: "Sebuah taman berbentuk lingkaran memiliki jari-jari (r) = 7 m. Berapa keliling taman tersebut? (π = 22/7)",
+      draw: "jarijari", label: "r = 7 m",
+      options: ["22 m", "44 m", "88 m", "154 m"], answer: 1,
+      exp: "Keliling = 2 × π × r = 2 × (22/7) × 7 = 44 meter."
+    },
+    {
+      cat: "Unsur Lingkaran",
+      q: "Garis hijau yang ditarik tegak lurus (90°) dari titik pusat O ke tali busur disebut...",
+      draw: "apotema", label: "",
+      options: ["Busur", "Jari-Jari", "Apotema", "Tembereng"], answer: 2,
+      exp: "Apotema adalah garis terpendek tegak lurus dari titik pusat ke tali busur."
+    },
+    {
+      cat: "Soal Cerita: Luas",
+      q: "Sebuah kolam berbentuk lingkaran memiliki jari-jari 7 m. Berapakah luas permukaan kolam itu? (L = π × r²)",
+      draw: "luas", label: "r = 7 m",
+      options: ["44 m²", "88 m²", "154 m²", "308 m²"], answer: 2,
+      exp: "Luas = (22/7) × 7 × 7 = 154 m²."
+    },
+    {
+      cat: "Unsur Lingkaran",
+      q: "Daerah ungu yang dibatasi oleh tali busur dan busur lingkaran disebut...",
+      draw: "tembereng", label: "",
+      options: ["Juring", "Tembereng", "Keliling", "Apotema"], answer: 1,
+      exp: "Tembereng adalah daerah di tepi dalam yang dibatasi tali busur dan busurnya."
+    },
+    {
+      cat: "Soal Cerita: Keliling Roda",
+      q: "Sebuah roda sepeda memiliki diameter (d) = 14 cm. Berapa keliling satu putaran roda tersebut? (K = π × d)",
+      draw: "diameter", label: "d = 14 cm",
+      options: ["22 cm", "44 cm", "88 cm", "154 cm"], answer: 1,
+      exp: "Keliling = π × d = (22/7) × 14 = 44 cm."
+    },
+    {
+      cat: "Soal Cerita: Luas",
+      q: "Sebuah meja bundar memiliki jari-jari 10 cm. Berapakah luas permukaan meja tersebut? (π = 3,14)",
+      draw: "luas", label: "r = 10 cm",
+      options: ["31,4 cm²", "62,8 cm²", "314 cm²", "628 cm²"], answer: 2,
+      exp: "Luas = 3,14 × 10² = 314 cm²."
+    },
+    {
+      cat: "Sudut Pusat & Keliling",
+      q: "Jika Sudut Pusat AOB adalah 80°, berapakah Sudut Keliling ACB yang menghadap busur yang sama?",
+      draw: "sudutpusat", label: "Pusat = 80°",
+      options: ["20°", "40°", "80°", "160°"], answer: 1,
+      exp: "Sudut Keliling = 1/2 × Sudut Pusat = 1/2 × 80° = 40°."
+    },
+    {
+      cat: "Sudut Pusat & Keliling",
+      q: "Jika Sudut Keliling PQR adalah 35°, berapakah Sudut Pusat POR yang menghadap busur yang sama?",
+      draw: "sudutpusat", label: "Keliling = 35°",
+      options: ["17,5°", "35°", "70°", "140°"], answer: 2,
+      exp: "Sudut Pusat = 2 × Sudut Keliling = 2 × 35° = 70°."
+    },
+    {
+      cat: "Sudut Keliling Siku-Siku",
+      q: "Sudut keliling yang menghadap langsung pada diameter lingkaran selalu bernilai sebesar...",
+      draw: "diameter", label: "Menghadap Diameter",
+      options: ["45°", "60°", "90°", "180°"], answer: 2,
+      exp: "Sudut keliling yang menghadap diameter besarnya selalu 90° (siku-siku)."
+    },
+    {
+      cat: "Panjang Busur",
+      q: "Jika keliling lingkaran adalah 88 cm, berapakah panjang busur di hadapan sudut pusat 90°?",
+      draw: "panjangbusur", label: "Sudut = 90°",
+      options: ["22 cm", "44 cm", "66 cm", "88 cm"], answer: 0,
+      exp: "Panjang Busur = (90° / 360°) × 88 cm = 22 cm."
+    },
+    {
+      cat: "Garis Singgung",
+      q: "Garis yang menyinggung lingkaran dan tegak lurus dengan jari-jari di titik singgungnya disebut...",
+      draw: "garissinggung", label: "Garis Singgung",
+      options: ["Tali Busur", "Garis Singgung Lingkaran", "Apotema", "Juring"], answer: 1,
+      exp: "Garis singgung lingkaran selalu tegak lurus (90°) dengan jari-jari di titik singgungnya."
+    },
+    {
+      cat: "Garis Singgung Persekutuan",
+      q: "Jarak pusat dua lingkaran 17 cm, jari-jari R = 10 cm dan r = 2 cm. Berapakah Garis Singgung Persekutuan Luar (GSPL)?",
+      draw: "garissinggung", label: "GSPL",
+      options: ["8 cm", "12 cm", "15 cm", "20 cm"], answer: 2,
+      exp: "GSPL = √(jarak² - (R - r)²) = √(17² - (10 - 2)²) = √(289 - 64) = √225 = 15 cm."
+    },
+    {
+      cat: "Unsur Lingkaran",
+      q: "Garis lengkung tebal pada keliling lingkaran yang menghubungkan dua titik disebut...",
+      draw: "busur", label: "",
+      options: ["Busur", "Tali Busur", "Juring", "Diameter"], answer: 0,
+      exp: "Busur lingkaran adalah garis lengkung bagian dari keliling lingkaran."
+    },
+    {
+      cat: "Jari-Jari & Diameter",
+      q: "Sebuah lapangan bundar memiliki diameter 28 meter. Berapakah panjang jari-jari (r) lapangan tersebut?",
+      draw: "diameter", label: "d = 28 m",
+      options: ["7 m", "14 m", "21 m", "56 m"], answer: 1,
+      exp: "Jari-jari adalah setengah dari diameter: r = 28 ÷ 2 = 14 meter."
+    },
+    {
+      cat: "Soal Cerita: Luas",
+      q: "Karpet berbentuk lingkaran memiliki jari-jari 14 cm. Berapa luas karpet tersebut? (π = 22/7)",
+      draw: "luas", label: "r = 14 cm",
+      options: ["88 cm²", "154 cm²", "308 cm²", "616 cm²"], answer: 3,
+      exp: "Luas = (22/7) × 14 × 14 = 616 cm²."
+    },
+    {
+      cat: "Soal Cerita: Luas Juring",
+      q: "Pizza utuh luasnya 154 cm² dipotong menjadi 2 bagian sama besar. Berapa luas 1 bagian setengah lingkaran?",
+      draw: "setengah", label: "1/2 Lingkaran",
+      options: ["44 cm²", "77 cm²", "88 cm²", "100 cm²"], answer: 1,
+      exp: "Luas setengah lingkaran = 154 ÷ 2 = 77 cm²."
+    },
+    {
+      cat: "Sudut Pusat",
+      q: "Jumlah total sudut pusat dalam satu putaran penuh lingkaran adalah...",
+      draw: "sudutpusat", label: "360°",
+      options: ["90°", "180°", "270°", "360°"], answer: 3,
+      exp: "Satu putaran penuh lingkaran besarnya adalah 360°."
+    }
+  ];
+
+  let QUESTIONS = loadQuestionsFromStorage();
+
+  let peer = null;
+  let conn = null;
+  let isHost = false;
+  let isSinglePlayer = false;
+  let myName = "Pemain 1";
+  let oppName = "Lawan";
+  let myScore = 0;
+  let oppScore = 0;
+  let currentRound = 0;
+  let answeredThisRound = false;
+  let oppAnsweredThisRound = false;
+  let roundTransitioning = false;
+
+  let timeLeft = ROUND_TIME;
+  let timerInterval = null;
+  let botTimer = null;
+
+  updateQuestionCountBadge();
+
+  function loadQuestionsFromStorage() {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {}
+    return JSON.parse(JSON.stringify(DEFAULT_QUESTIONS));
+  }
+
+  function saveQuestionsToStorage() {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(QUESTIONS));
+    updateQuestionCountBadge();
+  }
+
+  function updateQuestionCountBadge() {
+    const badge = document.getElementById('total-q-badge');
+    if (badge) badge.innerText = QUESTIONS.length;
+  }
+
+  function showScreen(id) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+  }
+
+  // ==================== MODE SINGLE PLAYER VS BOT AI ====================
+  function startSinglePlayerAI() {
+    myName = document.getElementById('player-name').value.trim() || "Siswa";
+    oppName = "Bot AI Pintar";
+    isSinglePlayer = true;
+    isHost = true;
+    myScore = 0;
+    oppScore = 0;
+    currentRound = 0;
+    loadRound(0);
+  }
+
+  function botAnswerLogic() {
+    if (oppAnsweredThisRound) return;
+    // Bot AI menjawab benar dengan probabilitas 75% setelah jeda 3-8 detik
+    const delay = Math.floor(Math.random() * 5000) + 3000;
+    botTimer = setTimeout(() => {
+      if (answeredThisRound && roundTransitioning) return;
+      oppAnsweredThisRound = true;
+      const item = QUESTIONS[currentRound];
+      const isBotCorrect = Math.random() < 0.75;
+      if (isBotCorrect) {
+        oppScore += 10;
+      }
+      updateScoreboard();
+      if (!answeredThisRound) {
+        document.getElementById('game-status').innerText = `⚡ ${oppName} sudah menjawab!`;
+      }
+      checkBothAnswered();
+    }, delay);
+  }
+
+  // ==================== PANEL GURU ====================
+  function openTeacherMenu() {
+    showScreen('screen-teacher');
+    resetForm();
+    renderTeacherQuestionList();
+    previewTeacherCanvas();
+  }
+
+  function previewTeacherCanvas() {
+    const drawType = document.getElementById('form-draw').value;
+    const labelText = document.getElementById('form-label').value.trim();
+    drawCircleOnCanvas('previewCanvas', drawType, labelText, 0.52);
+  }
+
+  function renderTeacherQuestionList() {
+    const listContainer = document.getElementById('teacher-q-list');
+    document.getElementById('list-count').innerText = QUESTIONS.length;
+    listContainer.innerHTML = '';
+
+    QUESTIONS.forEach((item, idx) => {
+      const div = document.createElement('div');
+      div.className = 'q-item';
+      const kunciHuruf = ["A", "B", "C", "D"][item.answer] || "A";
+      div.innerHTML = `
+        <div class="q-item-info">
+          <span class="q-item-tag">#${idx + 1} [${item.cat}] — Visual: ${item.draw.toUpperCase()}</span>
+          <div>${item.q}</div>
+          <div style="color:#34d399; font-size:0.72rem; margin-top:2px;">✓ Kunci (${kunciHuruf}): ${item.options[item.answer]}</div>
+          <div class="q-item-exp">💡 ${item.exp || '-'}</div>
+        </div>
+        <div class="q-item-actions">
+          <button class="btn-sm" style="background:#3b82f6;" onclick="playClickSound(); editQuestion(${idx})">Edit</button>
+          <button class="btn-sm" style="background:#ef4444;" onclick="playClickSound(); deleteQuestion(${idx})">Hapus</button>
+        </div>
+      `;
+      listContainer.appendChild(div);
+    });
+  }
+
+  function saveQuestion() {
+    playClickSound();
+    const editIdx = parseInt(document.getElementById('edit-index').value, 10);
+    const cat = document.getElementById('form-cat').value.trim() || "Soal Lingkaran";
+    const draw = document.getElementById('form-draw').value;
+    const label = document.getElementById('form-label').value.trim();
+    const q = document.getElementById('form-q').value.trim();
+    const opt0 = document.getElementById('form-opt0').value.trim();
+    const opt1 = document.getElementById('form-opt1').value.trim();
+    const opt2 = document.getElementById('form-opt2').value.trim();
+    const opt3 = document.getElementById('form-opt3').value.trim();
+    const answer = parseInt(document.getElementById('form-answer').value, 10);
+    const exp = document.getElementById('form-exp').value.trim() || `Jawaban yang tepat adalah ${[opt0, opt1, opt2, opt3][answer]}.`;
+
+    if (!q || !opt0 || !opt1 || !opt2 || !opt3) {
+      alert("Harap isi teks pertanyaan dan keempat opsi!");
+      return;
+    }
+
+    const newQ = { cat, q, draw, label, options: [opt0, opt1, opt2, opt3], answer, exp };
+    if (editIdx >= 0 && editIdx < QUESTIONS.length) {
+      QUESTIONS[editIdx] = newQ;
+    } else {
+      QUESTIONS.push(newQ);
+    }
+    saveQuestionsToStorage();
+    resetForm();
+    renderTeacherQuestionList();
+  }
+
+  function editQuestion(idx) {
+    const item = QUESTIONS[idx];
+    document.getElementById('edit-index').value = idx;
+    document.getElementById('form-cat').value = item.cat;
+    document.getElementById('form-draw').value = item.draw;
+    document.getElementById('form-label').value = item.label || "";
+    document.getElementById('form-q').value = item.q;
+    document.getElementById('form-opt0').value = item.options[0];
+    document.getElementById('form-opt1').value = item.options[1];
+    document.getElementById('form-opt2').value = item.options[2];
+    document.getElementById('form-opt3').value = item.options[3];
+    document.getElementById('form-answer').value = item.answer;
+    document.getElementById('form-exp').value = item.exp || "";
+    document.getElementById('btn-save-q').innerText = `💾 Update Soal #${idx + 1}`;
+    previewTeacherCanvas();
+  }
+
+  function deleteQuestion(idx) {
+    if (QUESTIONS.length <= 1) {
+      alert("Minimal harus ada 1 soal!");
+      return;
+    }
+    if (confirm(`Hapus soal nomor #${idx + 1}?`)) {
+      QUESTIONS.splice(idx, 1);
+      saveQuestionsToStorage();
+      resetForm();
+      renderTeacherQuestionList();
+    }
+  }
+
+  function resetForm() {
+    document.getElementById('edit-index').value = "-1";
+    document.getElementById('form-cat').value = "";
+    document.getElementById('form-draw').value = "juring";
+    document.getElementById('form-label').value = "";
+    document.getElementById('form-q').value = "";
+    document.getElementById('form-opt0').value = "";
+    document.getElementById('form-opt1').value = "";
+    document.getElementById('form-opt2').value = "";
+    document.getElementById('form-opt3').value = "";
+    document.getElementById('form-answer').value = "0";
+    document.getElementById('form-exp').value = "";
+    document.getElementById('btn-save-q').innerText = "💾 Simpan Soal Baru";
+    previewTeacherCanvas();
+  }
+
+  function resetToDefaultQuestions() {
+    playClickSound();
+    if (confirm("Kembalikan daftar soal ke 19 soal bawaan awal?")) {
+      QUESTIONS = JSON.parse(JSON.stringify(DEFAULT_QUESTIONS));
+      saveQuestionsToStorage();
+      resetForm();
+      renderTeacherQuestionList();
+    }
+  }
+
+  // ==================== KONEKSI PEERJS 2 HP ====================
+  function createRoom() {
+    isSinglePlayer = false;
+    myName = document.getElementById('player-name').value.trim() || "HP 1";
+    oppName = "HP 2";
+    isHost = true;
+    const code = Math.floor(1000 + Math.random() * 9000).toString();
+
+    showScreen('screen-lobby');
+    document.getElementById('display-room-code').innerText = code;
+
+    peer = new Peer("duel-lingkaran-" + code);
+    peer.on('open', () => {
+      document.getElementById('lobby-status').innerText = `Room siap (${QUESTIONS.length} Soal)! Menunggu HP 2...`;
+    });
+    peer.on('connection', (connection) => {
+      conn = connection;
+      setupConnection();
+    });
+    peer.on('error', (err) => {
+      alert("Gagal membuat room: " + err.type);
+      location.reload();
+    });
+  }
+
+  function joinRoom() {
+    isSinglePlayer = false;
+    myName = document.getElementById('player-name').value.trim() || "HP 2";
+    oppName = "HP 1";
+    const code = document.getElementById('join-code').value.trim();
+    if (code.length !== 4) {
+      document.getElementById('menu-status').innerText = "Masukkan kode 4 angka!";
+      return;
+    }
+    isHost = false;
+    document.getElementById('menu-status').innerText = "Menghubungkan...";
+
+    peer = new Peer();
+    peer.on('open', () => {
+      conn = peer.connect("duel-lingkaran-" + code);
+      setupConnection();
+    });
+    peer.on('error', () => {
+      document.getElementById('menu-status').innerText = "Room tidak ditemukan.";
+    });
+  }
+
+  function setupConnection() {
+    conn.on('open', () => {
+      conn.send({ type: 'HELLO', name: myName });
+      if (isHost) {
+        conn.send({ type: 'SYNC_QUESTIONS', questions: QUESTIONS });
+        setTimeout(() => startGame(), 700);
+      }
+    });
+
+    conn.on('data', (data) => {
+      if (data.type === 'HELLO') {
+        oppName = data.name;
+        updateScoreboard();
+      } else if (data.type === 'SYNC_QUESTIONS') {
+        QUESTIONS = data.questions;
+        updateQuestionCountBadge();
+      } else if (data.type === 'START_ROUND' || data.type === 'NEXT_ROUND') {
+        currentRound = data.round;
+        loadRound(currentRound);
+      } else if (data.type === 'ANSWER') {
+        oppScore = data.score;
+        oppAnsweredThisRound = true;
+        updateScoreboard();
+        if (!answeredThisRound) {
+          document.getElementById('game-status').innerText = `⚡ ${oppName} sudah menjawab!`;
+        }
+        checkBothAnswered();
+      } else if (data.type === 'GAME_OVER') {
+        clearInterval(timerInterval);
+        showGameOver();
+      }
+    });
+  }
+
+  // ==================== GAMEPLAY & TIMER ====================
+  function startGame() {
+    currentRound = 0;
+    if (!isSinglePlayer) {
+      conn.send({ type: 'START_ROUND', round: 0 });
+    }
+    loadRound(0);
+  }
+
+  function updateScoreboard() {
+    document.getElementById('p1-label').innerText = `${myName}: ${myScore}`;
+    document.getElementById('p2-label').innerText = `${oppName}: ${oppScore}`;
+    document.getElementById('round-label').innerText = `Soal ${currentRound + 1}/${QUESTIONS.length}`;
+  }
+
+  function startTimer() {
+    clearInterval(timerInterval);
+    timeLeft = ROUND_TIME;
+    updateTimerUI();
+
+    timerInterval = setInterval(() => {
+      timeLeft--;
+      updateTimerUI();
+      if (timeLeft <= 3 && timeLeft > 0) playTickSound();
+      if (timeLeft <= 0) {
+        clearInterval(timerInterval);
+        handleTimeout();
+      }
+    }, 1000);
+  }
+
+  function updateTimerUI() {
+    const label = document.getElementById('timer-label');
+    const bar = document.getElementById('timer-bar');
+    label.innerText = `⏱️ ${timeLeft}s`;
+    const pct = Math.max(0, (timeLeft / ROUND_TIME) * 100);
+    bar.style.width = pct + "%";
+
+    if (timeLeft > 8) {
+      bar.style.backgroundColor = "#10b981"; label.style.color = "#34d399";
+    } else if (timeLeft > 4) {
+      bar.style.backgroundColor = "#f59e0b"; label.style.color = "#fbbf24";
+    } else {
+      bar.style.backgroundColor = "#ef4444"; label.style.color = "#f87171";
+    }
+  }
+
+  function handleTimeout() {
+    if (answeredThisRound) return;
+    answeredThisRound = true;
+    playWrongSound();
+
+    const correctIdx = QUESTIONS[currentRound].answer;
+    const allBtns = document.querySelectorAll('.opt-btn');
+    allBtns.forEach(b => b.disabled = true);
+    if (allBtns[correctIdx]) allBtns[correctIdx].classList.add('correct');
+
+    document.getElementById('game-status').innerText = "⏰ Waktu Habis!";
+    if (isSinglePlayer) {
+      oppAnsweredThisRound = true;
+      checkBothAnswered();
+    } else {
+      conn.send({ type: 'ANSWER', score: myScore });
+      checkBothAnswered();
+    }
+  }
+
+  function loadRound(index) {
+    showScreen('screen-game');
+    answeredThisRound = false;
+    oppAnsweredThisRound = false;
+    roundTransitioning = false;
+    clearTimeout(botTimer);
+
+    const expBox = document.getElementById('explanation-box');
+    expBox.classList.remove('show');
+    document.getElementById('btn-next-round').style.display = 'none';
+    document.getElementById('waiting-host-msg').style.display = 'none';
+
+    document.getElementById('game-status').innerText = "Jawab sebelum 15 detik habis!";
+    updateScoreboard();
+
+    const item = QUESTIONS[index];
+    document.getElementById('q-category').innerText = item.cat;
+    document.getElementById('question-text').innerText = item.q;
+    drawCircleOnCanvas('circleCanvas', item.draw, item.label, 1);
+
+    const container = document.getElementById('options-container');
+    container.innerHTML = '';
+    item.options.forEach((opt, i) => {
+      const btn = document.createElement('button');
+      btn.className = 'opt-btn';
+      btn.innerText = opt;
+      btn.onclick = () => { playClickSound(); submitAnswer(i, btn); };
+      container.appendChild(btn);
+    });
+
+    startTimer();
+    if (isSinglePlayer) {
+      botAnswerLogic();
+    }
+  }
+
+  function submitAnswer(choiceIdx, btnElem) {
+    if (answeredThisRound) return;
+    answeredThisRound = true;
+    clearInterval(timerInterval);
+
+    const correctIdx = QUESTIONS[currentRound].answer;
+    const allBtns = document.querySelectorAll('.opt-btn');
+    allBtns.forEach(b => b.disabled = true);
+
+    if (choiceIdx === correctIdx) {
+      playCorrectSound();
+      btnElem.classList.add('correct');
+      const speedBonus = oppAnsweredThisRound ? 0 : timeLeft;
+      const points = 10 + speedBonus;
+      myScore += points;
+      document.getElementById('game-status').innerText = `✅ Benar! +${points} pts`;
+    } else {
+      playWrongSound();
+      btnElem.classList.add('wrong');
+      if (allBtns[correctIdx]) allBtns[correctIdx].classList.add('correct');
+      document.getElementById('game-status').innerText = `❌ Kurang tepat!`;
+    }
+
+    updateScoreboard();
+    if (isSinglePlayer) {
+      checkBothAnswered();
+    } else {
+      conn.send({ type: 'ANSWER', score: myScore });
+      checkBothAnswered();
+    }
+  }
+
+  function showRoundExplanation() {
+    const item = QUESTIONS[currentRound];
+    const kunciHuruf = ["A", "B", "C", "D"][item.answer] || "A";
+    const kunciTeks = item.options[item.answer];
+    const expText = item.exp || `Jawaban benar: (${kunciHuruf}) ${kunciTeks}.`;
+
+    const expBox = document.getElementById('explanation-box');
+    const expContent = document.getElementById('explanation-text');
+    expContent.innerHTML = `<b>Kunci: (${kunciHuruf}) ${kunciTeks}</b><br>${expText}`;
+    expBox.classList.add('show');
+
+    if (isHost || isSinglePlayer) {
+      document.getElementById('btn-next-round').style.display = 'block';
+    } else {
+      document.getElementById('waiting-host-msg').style.display = 'block';
+    }
+  }
+
+  function checkBothAnswered() {
+    if (answeredThisRound && oppAnsweredThisRound && !roundTransitioning) {
+      roundTransitioning = true;
+      clearTimeout(botTimer);
+      showRoundExplanation();
+    }
+  }
+
+  function hostNextRound() {
+    playClickSound();
+    if (!isHost && !isSinglePlayer) return;
+
+    if (currentRound + 1 < QUESTIONS.length) {
+      currentRound++;
+      if (!isSinglePlayer) {
+        conn.send({ type: 'NEXT_ROUND', round: currentRound });
+      }
+      loadRound(currentRound);
+    } else {
+      if (!isSinglePlayer) {
+        conn.send({ type: 'GAME_OVER' });
+      }
+      showGameOver();
+    }
+  }
+
+  function showGameOver() {
+    clearInterval(timerInterval);
+    clearTimeout(botTimer);
+    playWinSound();
+    showScreen('screen-result');
+
+    const title = document.getElementById('winner-title');
+    const desc = document.getElementById('winner-desc');
+    if (myScore > oppScore) {
+      title.innerText = "🏆 Kamu Menang!";
+      desc.innerText = `Luar biasa! ${myName} menguasai geometri lingkaran dengan sangat baik.`;
+    } else if (myScore < oppScore) {
+      title.innerText = "👏 Pertandingan Hebat!";
+      desc.innerText = `${oppName} unggul perolehan skor kali ini. Ayo coba lagi!`;
+    } else {
+      title.innerText = "🤝 Skor Seri (Draw)!";
+      desc.innerText = "Kalian berdua memiliki pemahaman lingkaran yang setara!";
+    }
+    document.getElementById('final-score-box').innerText = `${myName}: ${myScore} pts  |  ${oppName}: ${oppScore} pts`;
+  }
+
+  function printReport() {
+    playClickSound();
+    const w = window.open('', '_blank');
+    w.document.write(`
+      <html><head><title>Laporan Nilai Lingkaran</title>
+      <style>body{font-family:Arial;padding:25px;}h2{color:#1d4ed8;border-bottom:2px solid #ccc;padding-bottom:5px;}table{width:100%;border-collapse:collapse;margin-top:15px;}th,td{border:1px solid #888;padding:10px;text-align:center;}th{background:#f3f4f6;}</style>
+      </head><body>
+      <h2>📊 Laporan Hasil Game: Duel Master Lingkaran</h2>
+      <p><b>Waktu:</b> ${new Date().toLocaleString()}</p>
+      <table><tr><th>Nama</th><th>Skor</th><th>Keterangan</th></tr>
+      <tr><td><b>${myName}</b></td><td><b>${myScore} pts</b></td><td>${myScore >= oppScore ? 'Pemenang' : 'Peserta'}</td></tr>
+      <tr><td><b>${oppName}</b></td><td><b>${oppScore} pts</b></td><td>${oppScore >= myScore ? 'Pemenang' : 'Peserta'}</td></tr>
+      </table><script>window.print();<\/script></body></html>
+    `);
+    w.document.close();
+  }
+
+  // ==================== MENGGAMBAR DI CANVAS ====================
+  function drawCircleOnCanvas(canvasId, type, labelText, scale = 1) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    const cx = canvas.width / 2;
+    const cy = canvas.height / 2 + (2 * scale);
+    const r = 58 * scale;
+
+    if (type === "luas") {
+      ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(59, 130, 246, 0.35)"; ctx.fill();
+    }
+    if (type === "setengah") {
+      ctx.beginPath(); ctx.arc(cx, cy, r, Math.PI, 0); ctx.closePath();
+      ctx.fillStyle = "rgba(245, 158, 11, 0.5)"; ctx.fill();
+    }
+    if (type === "juring" || type === "sudutpusat") {
+      ctx.beginPath(); ctx.moveTo(cx, cy); ctx.arc(cx, cy, r, -Math.PI * 0.6, -Math.PI * 0.1); ctx.closePath();
+      ctx.fillStyle = "rgba(245, 158, 11, 0.55)"; ctx.fill();
+    }
+    if (type === "tembereng") {
+      ctx.beginPath(); ctx.arc(cx, cy, r, -Math.PI * 0.75, -Math.PI * 0.25); ctx.closePath();
+      ctx.fillStyle = "rgba(168, 85, 247, 0.6)"; ctx.fill();
+    }
+
+    // Keliling Utama
+    ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.strokeStyle = "#94a3b8"; ctx.lineWidth = 2.5 * scale; ctx.stroke();
+
+    if (type === "talibusur" || type === "apotema") {
+      const x1 = cx + r * Math.cos(-Math.PI * 0.75), y1 = cy + r * Math.sin(-Math.PI * 0.75);
+      const x2 = cx + r * Math.cos(-Math.PI * 0.25), y2 = cy + r * Math.sin(-Math.PI * 0.25);
+      ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2);
+      ctx.strokeStyle = type === "talibusur" ? "#ef4444" : "#cbd5e1"; ctx.lineWidth = 4 * scale; ctx.stroke();
+      if (type === "apotema") {
+        ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo((x1+x2)/2, (y1+y2)/2);
+        ctx.strokeStyle = "#10b981"; ctx.lineWidth = 4 * scale; ctx.stroke();
+      }
+    }
+
+    if (type === "diameter" || type === "setengah") {
+      ctx.beginPath(); ctx.moveTo(cx - r, cy); ctx.lineTo(cx + r, cy);
+      ctx.strokeStyle = "#facc15"; ctx.lineWidth = 4 * scale; ctx.stroke();
+    }
+
+    if (type === "jarijari" || type === "luas") {
+      ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + r, cy);
+      ctx.strokeStyle = "#38bdf8"; ctx.lineWidth = 4 * scale; ctx.stroke();
+    }
+
+    if (type === "busur" || type === "panjangbusur") {
+      ctx.beginPath(); ctx.arc(cx, cy, r, -Math.PI * 0.5, 0);
+      ctx.strokeStyle = "#38bdf8"; ctx.lineWidth = 6 * scale; ctx.stroke();
+    }
+
+    if (type === "garissinggung") {
+      // Gambar 2 lingkaran bersinggungan
+      ctx.beginPath(); ctx.arc(cx - 35, cy, 22, 0, Math.PI * 2);
+      ctx.strokeStyle = "#38bdf8"; ctx.lineWidth = 2; ctx.stroke();
+      ctx.beginPath(); ctx.arc(cx + 35, cy, 12, 0, Math.PI * 2);
+      ctx.strokeStyle = "#f472b6"; ctx.lineWidth = 2; ctx.stroke();
+      // Garis singgung luar (GSPL) di atas
+      ctx.beginPath(); ctx.moveTo(cx - 35, cy - 22); ctx.lineTo(cx + 35, cy - 12);
+      ctx.strokeStyle = "#facc15"; ctx.lineWidth = 3; ctx.stroke();
+    }
+
+    if (type === "sudutpusat") {
+      ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + r * Math.cos(-Math.PI * 0.6), cy + r * Math.sin(-Math.PI * 0.6));
+      ctx.moveTo(cx, cy); ctx.lineTo(cx + r * Math.cos(-Math.PI * 0.1), cy + r * Math.sin(-Math.PI * 0.1));
+      ctx.strokeStyle = "#f59e0b"; ctx.lineWidth = 3 * scale; ctx.stroke();
+      const topX = cx, topY = cy - r;
+      ctx.beginPath(); ctx.moveTo(topX, topY); ctx.lineTo(cx + r * Math.cos(-Math.PI * 0.6), cy + r * Math.sin(-Math.PI * 0.6));
+      ctx.moveTo(topX, topY); ctx.lineTo(cx + r * Math.cos(-Math.PI * 0.1), cy + r * Math.sin(-Math.PI * 0.1));
+      ctx.strokeStyle = "#38bdf8"; ctx.lineWidth = 2.5 * scale; ctx.stroke();
+      ctx.beginPath(); ctx.arc(topX, topY, 3.5, 0, Math.PI * 2); ctx.fillStyle = "#38bdf8"; ctx.fill();
+    }
+
+    // Titik Pusat O
+    ctx.beginPath(); ctx.arc(cx, cy, 3.5 * scale, 0, Math.PI * 2);
+    ctx.fillStyle = "#f8fafc"; ctx.fill();
+    ctx.font = `bold ${Math.round(11 * scale)}px sans-serif`;
+    ctx.fillText("O", cx - (12 * scale), cy + (14 * scale));
+
+    if (labelText) {
+      ctx.fillStyle = "#fde047";
+      ctx.font = `bold ${Math.round(11 * scale)}px sans-serif`;
+      ctx.fillText(labelText, cx - (30 * scale), cy - (12 * scale));
+    }
+  }
+</script>
+</body>
+</html>
